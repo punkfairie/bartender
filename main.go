@@ -8,6 +8,7 @@ import (
 	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	gloss "github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/lipgloss/list"
 	"golang.org/x/term"
 	"gopkg.in/yaml.v3"
 )
@@ -17,7 +18,6 @@ var width, height, _ = term.GetSize(int(os.Stdout.Fd()))
 type menu struct {
 	order      SoftwarePackages
 	current    int
-	done       int
 	keys       keyMap
 	help       help.Model
 	inputStyle gloss.Style
@@ -25,7 +25,7 @@ type menu struct {
 
 func initialModel() menu {
 	return menu{
-		current: 0,
+		current: 3,
 		keys:    keys,
 		help:    help.New(),
 	}
@@ -174,11 +174,23 @@ func (m menu) View() string {
 		Width(int(float64(width) * 0.3))
 
 	mainContent := ""
-	sidebarContent := ""
+
+	softwareListEnumerator := func(l list.Items, i int) string {
+		if m.current == i {
+			return ">"
+		} else if m.current > i {
+			return ""
+		}
+		return ""
+	}
+
+	software := list.New().Enumerator(softwareListEnumerator)
 
 	for _, item := range m.order {
-		sidebarContent += fmt.Sprintf("%s\n", item.Name)
+		software.Item(item.Name)
 	}
+
+	sidebarContent := software.String()
 
 	main := mainStyle.Render(mainContent)
 	sidebar := sidebarStyle.Render(sidebarContent)
