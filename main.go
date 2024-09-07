@@ -3,9 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"sort"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
+	"github.com/charmbracelet/bubbles/spinner"
 	tea "github.com/charmbracelet/bubbletea"
 	gloss "github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/list"
@@ -21,13 +23,19 @@ type menu struct {
 	keys       keyMap
 	help       help.Model
 	inputStyle gloss.Style
+	spinner    spinner.Model
 }
 
 func initialModel() menu {
+	s := spinner.New()
+	s.Spinner = spinner.MiniDot
+	s.Style = gloss.NewStyle().Foreground(gloss.Color("3"))
+
 	return menu{
 		current: 3,
 		keys:    keys,
 		help:    help.New(),
+		spinner: s,
 	}
 }
 
@@ -141,10 +149,13 @@ func readYaml() tea.Msg {
 }
 
 func (m menu) Init() tea.Cmd {
-	return readYaml
+	return tea.Batch(readYaml, m.spinner.Tick)
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
+	var cmd tea.Cmd
+	var cmds []tea.Cmd
+
 	switch msg := msg.(type) {
 
 	case yamlMsg:
@@ -156,9 +167,13 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "ctrl+c", "q":
 			return m, tea.Quit
 		}
+
+	case spinner.TickMsg:
+		m.spinner, cmd = m.spinner.Update(msg)
+		cmds = append(cmds, cmd)
 	}
 
-	return m, nil
+	return m, tea.Batch(cmds...)
 }
 
 func (m menu) View() string {
@@ -177,7 +192,7 @@ func (m menu) View() string {
 
 	softwareListEnumerator := func(l list.Items, i int) string {
 		if m.current == i {
-			return ">"
+			return m.spinner.View()
 		} else if m.current > i {
 			return ""
 		}
@@ -186,8 +201,14 @@ func (m menu) View() string {
 
 	software := list.New().Enumerator(softwareListEnumerator)
 
-	for _, item := range m.order {
-		software.Item(item.Name)
+	keys := make([]string, 0, len(m.order))
+	for k := range m.order {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	for _, k := range keys {
+		software.Item(m.order[k].Name)
 	}
 
 	sidebarContent := software.String()
