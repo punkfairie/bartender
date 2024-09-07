@@ -5,26 +5,75 @@ import (
 	"os"
 
 	tea "github.com/charmbracelet/bubbletea"
+	gloss "github.com/charmbracelet/lipgloss"
+	"golang.org/x/term"
+	"gopkg.in/yaml.v3"
 )
 
+var width, height, _ = term.GetSize(int(os.Stdout.Fd()))
+
 type menu struct {
-	order   []string
+	order   SoftwarePackages
 	current int
 	done    int
 }
 
 func initialModel() menu {
 	return menu{
-		order: []string{"brew install yq"},
+		current: 0,
 	}
 }
 
+type SoftwareDef struct {
+	Bin      *string `yaml:"_bin"`
+	Desc     string  `yaml:"_desc"`
+	Docs     *string `yaml:"_docs"`
+	Github   *string `yaml:"_github"`
+	Home     *string `yaml:"_home"`
+	Name     string  `yaml:"_name"`
+	Apk      *string `yaml:"apk"`
+	Appimage *string `yaml:"appimage"`
+}
+
+type SoftwarePackages map[string]SoftwareDef
+
+type YamlStructure struct {
+	SoftwarePackages SoftwarePackages `yaml:"softwarePackages"`
+}
+
+type yamlMsg YamlStructure
+
+type errMsg struct{ err error }
+
+func (e errMsg) Error() string { return e.err.Error() }
+
+func readYaml() tea.Msg {
+	fileData, fileErr := os.ReadFile("/Users/marley/hackin/install.fairie/software-custom.yml")
+	if fileErr != nil {
+		return errMsg{fileErr}
+	}
+
+	var parsedYaml YamlStructure
+
+	yamlErr := yaml.Unmarshal(fileData, &parsedYaml)
+	if yamlErr != nil {
+		return errMsg{yamlErr}
+	}
+
+	return yamlMsg(parsedYaml)
+}
+
 func (m menu) Init() tea.Cmd {
-	return nil
+	return readYaml
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+
+	case yamlMsg:
+		m.order = msg.SoftwarePackages
+		return m, tea.Quit
+
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
@@ -36,15 +85,25 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m menu) View() string {
-	s := "Installing...\n\n"
+	mainStyle := gloss.NewStyle().
+		Width(int(float64(width) * 0.65)).
+		BorderStyle(gloss.NormalBorder()).
+		BorderForeground(gloss.Color("63"))
 
-	for _, item := range m.order {
-		s += fmt.Sprintf("%s\n", item)
-	}
+	sidebarStyle := gloss.NewStyle().
+		Width(int(float64(width) * 0.3)).
+		BorderStyle(gloss.NormalBorder()).
+		BorderForeground(gloss.Color("63"))
 
-	s += "\nPress q to quit.\n"
+	mainContent := fmt.Sprintln(m.order)
+	sidebarContent := ""
 
-	return s
+	main := mainStyle.Render(mainContent)
+	sidebar := sidebarStyle.Render(sidebarContent)
+
+	content := gloss.JoinHorizontal(gloss.Top, main, sidebar)
+
+	return gloss.PlaceHorizontal(width, gloss.Center, content)
 }
 
 func main() {
