@@ -25,10 +25,9 @@ type menu struct {
 
 func initialModel() menu {
 	return menu{
-		current:    0,
-		keys:       keys,
-		help:       help.New(),
-		inputStyle: gloss.NewStyle().Foreground(gloss.Color("#FF75B7")),
+		current: 0,
+		keys:    keys,
+		help:    help.New(),
 	}
 }
 
@@ -163,15 +162,16 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m menu) View() string {
-	mainStyle := gloss.NewStyle().
-		Width(int(float64(width) * 0.65)).
-		BorderStyle(gloss.NormalBorder()).
-		BorderForeground(gloss.Color("63"))
+	borderStyle := gloss.NewStyle().
+		BorderStyle(gloss.RoundedBorder()).
+		BorderForeground(gloss.Color("5")).
+		Padding(0, 1)
 
-	sidebarStyle := gloss.NewStyle().
-		Width(int(float64(width) * 0.3)).
-		BorderStyle(gloss.NormalBorder()).
-		BorderForeground(gloss.Color("63"))
+	mainStyle := borderStyle.
+		Width(int(float64(width) * 0.65))
+
+	sidebarStyle := borderStyle.
+		Width(int(float64(width) * 0.3))
 
 	mainContent := ""
 	sidebarContent := ""
