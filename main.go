@@ -24,6 +24,7 @@ type menu struct {
 	help       help.Model
 	inputStyle gloss.Style
 	spinner    spinner.Model
+	quitting   bool
 }
 
 func initialModel() menu {
@@ -32,10 +33,11 @@ func initialModel() menu {
 	s.Style = gloss.NewStyle().Foreground(gloss.Color("3"))
 
 	return menu{
-		current: 3,
-		keys:    keys,
-		help:    help.New(),
-		spinner: s,
+		current:  3,
+		keys:     keys,
+		help:     help.New(),
+		spinner:  s,
+		quitting: false,
 	}
 }
 
@@ -165,6 +167,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.KeyMsg:
 		switch msg.String() {
 		case "ctrl+c", "q":
+			m.quitting = true
 			return m, tea.Quit
 		}
 
@@ -220,7 +223,12 @@ func (m menu) View() string {
 
 	helpView := m.help.View(m.keys)
 
-	page := gloss.JoinVertical(gloss.Left, content, helpView)
+	last := ""
+	if m.quitting {
+		last = "\n"
+	}
+
+	page := gloss.JoinVertical(gloss.Left, content, helpView, last)
 
 	return gloss.PlaceHorizontal(width, gloss.Center, page)
 }
