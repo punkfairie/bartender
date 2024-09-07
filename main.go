@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/charmbracelet/bubbles/help"
+	"github.com/charmbracelet/bubbles/key"
 	tea "github.com/charmbracelet/bubbletea"
 	gloss "github.com/charmbracelet/lipgloss"
 	"golang.org/x/term"
@@ -13,14 +15,43 @@ import (
 var width, height, _ = term.GetSize(int(os.Stdout.Fd()))
 
 type menu struct {
-	order   SoftwarePackages
-	current int
-	done    int
+	order      SoftwarePackages
+	current    int
+	done       int
+	keys       keyMap
+	help       help.Model
+	inputStyle gloss.Style
 }
 
 func initialModel() menu {
 	return menu{
-		current: 0,
+		current:    0,
+		keys:       keys,
+		help:       help.New(),
+		inputStyle: gloss.NewStyle().Foreground(gloss.Color("#FF75B7")),
+	}
+}
+
+type keyMap struct {
+	Quit key.Binding
+}
+
+var keys = keyMap{
+	Quit: key.NewBinding(
+		key.WithKeys("q", "esc", "ctrl+c"),
+		key.WithHelp("q", "quit"),
+	),
+}
+
+func (k keyMap) ShortHelp() []key.Binding {
+	return []key.Binding{k.Quit}
+}
+
+func (k keyMap) FullHelp() [][]key.Binding {
+	keys := k.ShortHelp()
+
+	return [][]key.Binding{
+		keys,
 	}
 }
 
@@ -119,7 +150,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case yamlMsg:
 		m.order = msg.SoftwarePackages
-		return m, tea.Quit
+		return m, nil
 
 	case tea.KeyMsg:
 		switch msg.String() {
@@ -142,15 +173,23 @@ func (m menu) View() string {
 		BorderStyle(gloss.NormalBorder()).
 		BorderForeground(gloss.Color("63"))
 
-	mainContent := fmt.Sprintln(m.order)
+	mainContent := ""
 	sidebarContent := ""
+
+	for _, item := range m.order {
+		sidebarContent += fmt.Sprintf("%s\n", item.Name)
+	}
 
 	main := mainStyle.Render(mainContent)
 	sidebar := sidebarStyle.Render(sidebarContent)
 
 	content := gloss.JoinHorizontal(gloss.Top, main, sidebar)
 
-	return gloss.PlaceHorizontal(width, gloss.Center, content)
+	helpView := m.help.View(m.keys)
+
+	page := gloss.JoinVertical(gloss.Left, content, helpView)
+
+	return gloss.PlaceHorizontal(width, gloss.Center, page)
 }
 
 func main() {
