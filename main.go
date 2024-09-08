@@ -17,16 +17,17 @@ import (
 )
 
 type menu struct {
-	order      []string
-	current    int
-	keys       keyMap
-	help       help.Model
-	inputStyle gloss.Style
-	spinner    spinner.Model
-	quitting   bool
-	viewport   viewport.Model
-	width      int
-	height     int
+	order    []string
+	current  int
+	keys     keyMap
+	help     help.Model
+	spinner  spinner.Model
+	quitting bool
+	width    int
+	height   int
+	sub      chan string
+	output   *string
+	viewport viewport.Model
 }
 
 const (
@@ -40,15 +41,22 @@ func initialModel() menu {
 	s.Style = gloss.NewStyle().Foreground(gloss.Color("3"))
 	width, height, _ := term.GetSize(int(os.Stdout.Fd()))
 
-	return menu{
-		current:  150,
+	m := menu{
+		current:  0,
 		keys:     keys,
 		help:     help.New(),
 		spinner:  s,
 		quitting: false,
 		width:    width,
 		height:   height,
+		sub:      make(chan string),
+		output:   new(string),
+		viewport: viewport.New(0, 30),
 	}
+
+	m.appendOutput("Running...")
+
+	return m
 }
 
 type keyMap struct {
@@ -80,8 +88,22 @@ type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
+func (m *menu) appendOutput(s string) {
+	*m.output += "\n" + s
+	m.viewport.SetContent(*m.output)
+	m.viewport.GotoBottom()
+}
+
 func (m menu) Init() tea.Cmd {
 	return tea.Batch(getSoftwareList(softwareInstructionsFile), m.spinner.Tick)
+}
+
+func (m menu) setDimensions() {
+	m.width, m.height, _ = term.GetSize(int(os.Stdout.Fd()))
+}
+
+func calcMainWidth(width int) int {
+	return int(float64(width) * 0.65)
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -92,6 +114,14 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case softwareListMsg:
 		m.order = msg
+		cmds = append(cmds, installPackage(m.sub), waitForCmdResponses(m.sub))
+
+	case cmdMsg:
+		m.appendOutput(string(msg))
+		cmds = append(cmds, waitForCmdResponses(m.sub))
+
+	case cmdDoneMsg:
+		m.appendOutput("Done!!")
 
 	case tea.KeyMsg:
 		switch {
@@ -105,27 +135,33 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		cmds = append(cmds, cmd)
 
 	case tea.WindowSizeMsg:
-		m.width, m.height, _ = term.GetSize(int(os.Stdout.Fd()))
+		m.setDimensions()
+		m.viewport.Width = calcMainWidth(m.width)
+
+	case errMsg:
+		m.appendOutput("Error: " + msg.Error())
 	}
+
+	m.viewport, cmd = m.viewport.Update(msg)
+	cmds = append(cmds, cmd)
 
 	return m, tea.Batch(cmds...)
 }
 
 func (m menu) View() string {
+	mainWidth := calcMainWidth(m.width)
 	borderStyle := gloss.NewStyle().
 		BorderStyle(gloss.RoundedBorder()).
 		BorderForeground(gloss.Color("5")).
 		Padding(0, 1)
 
 	mainStyle := borderStyle.
-		Width(int(float64(m.width) * 0.65))
+		Width(mainWidth)
 
 	sidebarStyle := borderStyle.
 		Width(int(float64(m.width) * 0.3))
 
 	topPadding := 1
-
-	mainContent := ""
 
 	helpView := m.help.View(m.keys)
 
@@ -157,6 +193,10 @@ func (m menu) View() string {
 
 	sidebarContent := software.String()
 
+	m.viewport.Height = sidebarHeight
+	m.viewport.Width = mainWidth
+	mainContent := m.viewport.View()
+
 	main := mainStyle.Render(mainContent)
 	sidebar := sidebarStyle.Render(sidebarContent)
 
@@ -174,7 +214,10 @@ func (m menu) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
+	p := tea.NewProgram(
+		initialModel(),
+		tea.WithAltScreen(),
+	)
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There's been an error: %v", err)
