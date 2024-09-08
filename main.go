@@ -26,13 +26,15 @@ type menu struct {
 	quitting   bool
 }
 
+const softwareInstructionsFile = "/Users/marley/hackin/install.fairie/software-custom.yml"
+
 func initialModel() menu {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
 	s.Style = gloss.NewStyle().Foreground(gloss.Color("3"))
 
 	return menu{
-		current:  3,
+		current:  0,
 		keys:     keys,
 		help:     help.New(),
 		spinner:  s,
@@ -70,7 +72,7 @@ type errMsg struct{ err error }
 func (e errMsg) Error() string { return e.err.Error() }
 
 func (m menu) Init() tea.Cmd {
-	return tea.Batch(readYaml, m.spinner.Tick)
+	return tea.Batch(readYaml(softwareInstructionsFile), m.spinner.Tick)
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -123,11 +125,7 @@ func (m menu) View() string {
 
 	software := list.New().Enumerator(softwareListEnumerator)
 
-	keys := make([]string, 0, len(m.order))
-	for k := range m.order {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
+	keys := sortMapKeys(m.order)
 
 	for _, k := range keys {
 		software.Item(m.order[k].Name)
@@ -160,4 +158,16 @@ func main() {
 
 		os.Exit(1)
 	}
+}
+
+func sortMapKeys(m SoftwarePackages) []string {
+	keys := make([]string, 0, len(m))
+
+	for k := range m {
+		keys = append(keys, k)
+	}
+
+	sort.Strings(keys)
+
+	return keys
 }

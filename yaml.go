@@ -71,18 +71,20 @@ type osNames struct {
 	Windows *string `yaml:"windows"`
 }
 
-func readYaml() tea.Msg {
-	fileData, fileErr := os.ReadFile("/Users/marley/hackin/install.fairie/software-custom.yml")
-	if fileErr != nil {
-		return errMsg{fileErr}
+func readYaml(file string) tea.Cmd {
+	return func() tea.Msg {
+		fileData, fileErr := os.ReadFile(file)
+		if fileErr != nil {
+			return errMsg{fileErr}
+		}
+
+		var parsedYaml YamlStructure
+
+		yamlErr := yaml.Unmarshal(fileData, &parsedYaml)
+		if yamlErr != nil {
+			return errMsg{yamlErr}
+		}
+
+		return yamlMsg(parsedYaml)
 	}
-
-	var parsedYaml YamlStructure
-
-	yamlErr := yaml.Unmarshal(fileData, &parsedYaml)
-	if yamlErr != nil {
-		return errMsg{yamlErr}
-	}
-
-	return yamlMsg(parsedYaml)
 }
