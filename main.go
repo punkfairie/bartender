@@ -4,17 +4,17 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/charmbracelet/bubbles/help"
 	"github.com/charmbracelet/bubbles/key"
 	"github.com/charmbracelet/bubbles/spinner"
+	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	gloss "github.com/charmbracelet/lipgloss"
 	"github.com/charmbracelet/lipgloss/list"
 	"golang.org/x/term"
 )
-
-var width, height, _ = term.GetSize(int(os.Stdout.Fd()))
 
 type menu struct {
 	order      []string
@@ -24,6 +24,9 @@ type menu struct {
 	inputStyle gloss.Style
 	spinner    spinner.Model
 	quitting   bool
+	viewport   viewport.Model
+	width      int
+	height     int
 }
 
 const (
@@ -35,13 +38,16 @@ func initialModel() menu {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
 	s.Style = gloss.NewStyle().Foreground(gloss.Color("3"))
+	width, height, _ := term.GetSize(int(os.Stdout.Fd()))
 
 	return menu{
-		current:  0,
+		current:  150,
 		keys:     keys,
 		help:     help.New(),
 		spinner:  s,
 		quitting: false,
+		width:    width,
+		height:   height,
 	}
 }
 
@@ -86,11 +92,10 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case softwareListMsg:
 		m.order = msg
-		return m, nil
 
 	case tea.KeyMsg:
-		switch msg.String() {
-		case "ctrl+c", "q":
+		switch {
+		case key.Matches(msg, keys.Quit):
 			m.quitting = true
 			return m, tea.Quit
 		}
@@ -98,6 +103,9 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case spinner.TickMsg:
 		m.spinner, cmd = m.spinner.Update(msg)
 		cmds = append(cmds, cmd)
+
+	case tea.WindowSizeMsg:
+		m.width, m.height, _ = term.GetSize(int(os.Stdout.Fd()))
 	}
 
 	return m, tea.Batch(cmds...)
@@ -110,12 +118,16 @@ func (m menu) View() string {
 		Padding(0, 1)
 
 	mainStyle := borderStyle.
-		Width(int(float64(width) * 0.65))
+		Width(int(float64(m.width) * 0.65))
 
 	sidebarStyle := borderStyle.
-		Width(int(float64(width) * 0.3))
+		Width(int(float64(m.width) * 0.3))
+
+	topPadding := 1
 
 	mainContent := ""
+
+	helpView := m.help.View(m.keys)
 
 	softwareListEnumerator := func(l list.Items, i int) string {
 		if m.current == i {
@@ -128,8 +140,19 @@ func (m menu) View() string {
 
 	software := list.New().Enumerator(softwareListEnumerator)
 
-	for _, item := range m.order {
-		software.Item(item)
+	sidebarHeight := m.height - 3 - gloss.Height(helpView) - topPadding
+
+	if len(m.order) > 0 {
+		start := max(m.current-10, 0)
+		end := min(start+sidebarHeight, len(m.order))
+
+		if (end - start) < sidebarHeight {
+			start = (len(m.order) - sidebarHeight)
+		}
+
+		for _, item := range m.order[start:end] {
+			software.Item(item)
+		}
 	}
 
 	sidebarContent := software.String()
@@ -139,16 +162,15 @@ func (m menu) View() string {
 
 	content := gloss.JoinHorizontal(gloss.Top, main, sidebar)
 
-	helpView := m.help.View(m.keys)
-
+	top := strings.Repeat("\n", topPadding)
 	last := ""
 	if m.quitting {
 		last = "\n"
 	}
 
-	page := gloss.JoinVertical(gloss.Left, content, helpView, last)
+	page := gloss.JoinVertical(gloss.Left, top, content, helpView, last)
 
-	return gloss.PlaceHorizontal(width, gloss.Center, page)
+	return gloss.PlaceHorizontal(m.width, gloss.Center, page)
 }
 
 func main() {
