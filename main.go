@@ -152,7 +152,7 @@ func (m menu) View() string {
 }
 
 func main() {
-	p := tea.NewProgram(initialModel())
+	p := tea.NewProgram(initialModel(), tea.WithAltScreen())
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There's been an error: %v", err)
