@@ -17,7 +17,7 @@ import (
 var width, height, _ = term.GetSize(int(os.Stdout.Fd()))
 
 type menu struct {
-	order      SoftwarePackages
+	order      []string
 	current    int
 	keys       keyMap
 	help       help.Model
@@ -26,7 +26,10 @@ type menu struct {
 	quitting   bool
 }
 
-const softwareInstructionsFile = "/Users/marley/hackin/install.fairie/software-custom.yml"
+const (
+	softwareInstructionsFile = "/Users/marley/hackin/install.fairie/home/.chezmoidata.yaml"
+	softwareGroup            = "_Full-Desktop"
+)
 
 func initialModel() menu {
 	s := spinner.New()
@@ -65,14 +68,14 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-type yamlMsg YamlStructure
+type softwareListMsg []string
 
 type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
 
 func (m menu) Init() tea.Cmd {
-	return tea.Batch(readYaml(softwareInstructionsFile), m.spinner.Tick)
+	return tea.Batch(getSoftwareList(softwareInstructionsFile), m.spinner.Tick)
 }
 
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
@@ -81,8 +84,8 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case yamlMsg:
-		m.order = msg.SoftwarePackages
+	case softwareListMsg:
+		m.order = msg
 		return m, nil
 
 	case tea.KeyMsg:
@@ -125,10 +128,8 @@ func (m menu) View() string {
 
 	software := list.New().Enumerator(softwareListEnumerator)
 
-	keys := sortMapKeys(m.order)
-
-	for _, k := range keys {
-		software.Item(m.order[k].Name)
+	for _, item := range m.order {
+		software.Item(item)
 	}
 
 	sidebarContent := software.String()

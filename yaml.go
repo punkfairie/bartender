@@ -71,20 +71,28 @@ type osNames struct {
 	Windows *string `yaml:"windows"`
 }
 
-func readYaml(file string) tea.Cmd {
+type ChezmoiData struct {
+	SoftwareGroups SoftwareGroups `yaml:"softwareGroups"`
+}
+
+type SoftwareGroups map[string]any
+
+func getSoftwareList(file string) tea.Cmd {
 	return func() tea.Msg {
 		fileData, fileErr := os.ReadFile(file)
 		if fileErr != nil {
 			return errMsg{fileErr}
 		}
 
-		var parsedYaml YamlStructure
+		var parsedYaml ChezmoiData
 
 		yamlErr := yaml.Unmarshal(fileData, &parsedYaml)
 		if yamlErr != nil {
 			return errMsg{yamlErr}
 		}
 
-		return yamlMsg(parsedYaml)
+		list := flatten(parsedYaml.SoftwareGroups[softwareGroup])
+
+		return softwareListMsg(list)
 	}
 }
