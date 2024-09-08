@@ -102,10 +102,6 @@ func (m menu) setDimensions() {
 	m.width, m.height, _ = term.GetSize(int(os.Stdout.Fd()))
 }
 
-func calcMainWidth(width int) int {
-	return int(float64(width) * 0.65)
-}
-
 func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 	var cmds []tea.Cmd
@@ -136,7 +132,8 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case tea.WindowSizeMsg:
 		m.setDimensions()
-		m.viewport.Width = calcMainWidth(m.width)
+		m.viewport.Width = gloss.Width(m.mainView())
+		m.viewport.Height = gloss.Height(m.mainView())
 
 	case errMsg:
 		m.appendOutput("Error: " + msg.Error())
@@ -148,22 +145,32 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, tea.Batch(cmds...)
 }
 
-func (m menu) View() string {
-	mainWidth := calcMainWidth(m.width)
-	borderStyle := gloss.NewStyle().
-		BorderStyle(gloss.RoundedBorder()).
-		BorderForeground(gloss.Color("5")).
-		Padding(0, 1)
+var borderStyle = gloss.NewStyle().
+	BorderStyle(gloss.RoundedBorder()).
+	BorderForeground(gloss.Color("5")).
+	Padding(0, 1)
+
+var topPadding = 1
+
+func (m menu) mainView() string {
+	mainWidth := int(float64(m.width) * 0.65)
 
 	mainStyle := borderStyle.
-		Width(mainWidth)
+		Width(mainWidth).
+		Height(m.calcInnerSidebarHeight() - 2)
 
+	mainContent := m.viewport.View()
+
+	return mainStyle.Render(mainContent)
+}
+
+func (m menu) calcInnerSidebarHeight() int {
+	return m.height - 3 - gloss.Height(m.helpView()) - topPadding
+}
+
+func (m menu) sidebarView() string {
 	sidebarStyle := borderStyle.
 		Width(int(float64(m.width) * 0.3))
-
-	topPadding := 1
-
-	helpView := m.help.View(m.keys)
 
 	softwareListEnumerator := func(l list.Items, i int) string {
 		if m.current == i {
@@ -176,7 +183,7 @@ func (m menu) View() string {
 
 	software := list.New().Enumerator(softwareListEnumerator)
 
-	sidebarHeight := m.height - 3 - gloss.Height(helpView) - topPadding
+	sidebarHeight := m.calcInnerSidebarHeight()
 
 	if len(m.order) > 0 {
 		start := max(m.current-10, 0)
@@ -193,14 +200,15 @@ func (m menu) View() string {
 
 	sidebarContent := software.String()
 
-	m.viewport.Height = sidebarHeight
-	m.viewport.Width = mainWidth
-	mainContent := m.viewport.View()
+	return sidebarStyle.Render(sidebarContent)
+}
 
-	main := mainStyle.Render(mainContent)
-	sidebar := sidebarStyle.Render(sidebarContent)
+func (m menu) helpView() string {
+	return m.help.View(m.keys)
+}
 
-	content := gloss.JoinHorizontal(gloss.Top, main, sidebar)
+func (m menu) View() string {
+	content := gloss.JoinHorizontal(gloss.Top, m.mainView(), m.sidebarView())
 
 	top := strings.Repeat("\n", topPadding)
 	last := ""
@@ -208,7 +216,7 @@ func (m menu) View() string {
 		last = "\n"
 	}
 
-	page := gloss.JoinVertical(gloss.Left, top, content, helpView, last)
+	page := gloss.JoinVertical(gloss.Left, top, content, m.helpView(), last)
 
 	return gloss.PlaceHorizontal(m.width, gloss.Center, page)
 }

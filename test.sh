@@ -2,7 +2,8 @@
 
 i=0
 
-while [ $i -le 100 ]; do
-	printf "line\n"
-	sleep 1
+while [ $i -le 200 ]; do
+	printf '%s line\n' "$i"
+	i=$((i + 1))
+	sleep .1
 done
