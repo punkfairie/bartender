@@ -2,8 +2,10 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"os/exec"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -12,8 +14,12 @@ type cmdMsg string
 
 type cmdDoneMsg struct{}
 
-func installPackage(sub chan string) tea.Cmd {
+func (m menu) installPackage() tea.Cmd {
 	return func() tea.Msg {
+		pkg := m.order[m.current]
+
+		m.appendOutput(fmt.Sprintf("Installing %s", pkg))
+
 		cmd := exec.Command("./test.sh")
 		out, err := cmd.StdoutPipe()
 		if err != nil {
@@ -29,6 +35,8 @@ func installPackage(sub chan string) tea.Cmd {
 			line, _, err := buf.ReadLine()
 
 			if err == io.EOF {
+				m.appendOutput(fmt.Sprintf("Finished installing %s!", pkg))
+				time.Sleep(3 * time.Second)
 				return cmdDoneMsg{}
 			}
 
@@ -36,7 +44,7 @@ func installPackage(sub chan string) tea.Cmd {
 				return errMsg{err}
 			}
 
-			sub <- string(line)
+			m.sub <- string(line)
 		}
 	}
 }
