@@ -8,19 +8,19 @@ import (
 )
 
 type YamlStructure struct {
-	InstallerPreferences InstallerPreferences `yaml:"installerPreferences"`
-	SoftwarePackages     SoftwarePackages     `yaml:"softwarePackages"`
+	InstallerPreference InstallerPreference `yaml:"installerPreference"`
+	SoftwarePackages    SoftwarePackages    `yaml:"softwarePackages"`
 }
 
-type InstallerPreferences struct {
-	Apt     []string `yaml:"apt"`
-	Darwin  []string `yaml:"darwin"`
-	Dnf     []string `yaml:"dnf"`
-	Freebsd []string `yaml:"freebsd"`
-	Pacman  []string `yaml:"pacman"`
-	Ubuntu  []string `yaml:"ubuntu"`
-	Windows []string `yaml:"windows"`
-	Zypper  []string `yaml:"zypper"`
+type InstallerPreference struct {
+	Apt      []string `yaml:"apt"`
+	Darwin   []string `yaml:"darwin"`
+	Fedora   []string `yaml:"fedora"`
+	Freebsd  []string `yaml:"freebsd"`
+	Arch     []string `yaml:"arch"`
+	Ubuntu   []string `yaml:"ubuntu"`
+	Windows  []string `yaml:"windows"`
+	OpenSUSE []string `yaml:"openSUSE"`
 }
 
 type SoftwarePackages map[string]SoftwareDef
@@ -77,7 +77,11 @@ type ChezmoiData struct {
 
 type SoftwareGroups map[string]any
 
-func getSoftwareList(file string) tea.Cmd {
+type ordersMsg []string
+
+type recipesMsg SoftwarePackages
+
+func getOrders(file string) tea.Cmd {
 	return func() tea.Msg {
 		fileData, fileErr := os.ReadFile(file)
 		if fileErr != nil {
@@ -93,6 +97,24 @@ func getSoftwareList(file string) tea.Cmd {
 
 		list := flatten(parsedYaml.SoftwareGroups[softwareGroup])
 
-		return softwareListMsg(list)
+		return ordersMsg(list)
+	}
+}
+
+func getRecipes(file string) tea.Cmd {
+	return func() tea.Msg {
+		fileData, fileErr := os.ReadFile(file)
+		if fileErr != nil {
+			return errMsg{fileErr}
+		}
+
+		var parsedYaml SoftwarePackages
+
+		yamlErr := yaml.Unmarshal(fileData, &parsedYaml)
+		if yamlErr != nil {
+			return errMsg{yamlErr}
+		}
+
+		return recipesMsg(parsedYaml)
 	}
 }

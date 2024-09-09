@@ -18,6 +18,7 @@ import (
 
 type menu struct {
 	order    []string
+	recipes  SoftwarePackages
 	current  int
 	keys     keyMap
 	help     help.Model
@@ -32,8 +33,9 @@ type menu struct {
 }
 
 const (
-	softwareInstructionsFile = "/Users/marley/hackin/install.fairie/home/.chezmoidata.yaml"
-	softwareGroup            = "_Full-Desktop"
+	ordersFile    = "/Users/marley/hackin/install.fairie/home/.chezmoidata.yaml"
+	recipesFile   = "/Users/marley/hackin/install.fairie/software.yml"
+	softwareGroup = "_Full-Desktop"
 )
 
 func initialModel(logFile *os.File) menu {
@@ -86,8 +88,6 @@ func (k keyMap) FullHelp() [][]key.Binding {
 	}
 }
 
-type softwareListMsg []string
-
 type errMsg struct{ err error }
 
 func (e errMsg) Error() string { return e.err.Error() }
@@ -99,7 +99,7 @@ func (m *menu) appendOutput(s string) {
 }
 
 func (m menu) Init() tea.Cmd {
-	return tea.Batch(getSoftwareList(softwareInstructionsFile), m.spinner.Tick)
+	return tea.Batch(getOrders(ordersFile), getRecipes(recipesFile), m.spinner.Tick)
 }
 
 func (m menu) setDimensions() {
@@ -112,9 +112,17 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 
-	case softwareListMsg:
+	case ordersMsg:
 		m.order = msg
-		cmds = append(cmds, m.installPackage(), waitForCmdResponses(m.sub))
+		if len(m.recipes) > 0 {
+			cmds = append(cmds, m.installPackage(), waitForCmdResponses(m.sub))
+		}
+
+	case recipesMsg:
+		m.recipes = SoftwarePackages(msg)
+		if len(m.recipes) > 0 {
+			cmds = append(cmds, m.installPackage(), waitForCmdResponses(m.sub))
+		}
 
 	case cmdMsg:
 		m.appendOutput(string(msg))
@@ -168,9 +176,17 @@ func (m menu) View() string {
 func main() {
 	l, err := os.Create("log.txt")
 	if err != nil {
-		panic(err)
+		fmt.Println("fatal:", err)
+		os.Exit(1)
 	}
 	defer l.Close()
+
+	f, err := tea.LogToFile("tea-log.txt", "debug")
+	if err != nil {
+		fmt.Println("fatal:", err)
+		os.Exit(1)
+	}
+	defer f.Close()
 
 	p := tea.NewProgram(
 		initialModel(l),
@@ -179,7 +195,6 @@ func main() {
 
 	if _, err := p.Run(); err != nil {
 		fmt.Printf("There's been an error: %v", err)
-
 		os.Exit(1)
 	}
 }

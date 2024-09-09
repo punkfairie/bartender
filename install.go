@@ -36,7 +36,7 @@ func (m menu) installPackage() tea.Cmd {
 			if err == io.EOF {
 				m.logger.Infof("Finished installing %s!", pkg)
 				m.logger.Infof("Output: %s\n\n", *m.output)
-				time.Sleep(2 * time.Second)
+				time.Sleep(1 * time.Second)
 				return cmdDoneMsg{}
 			}
 
