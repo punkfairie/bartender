@@ -2,7 +2,6 @@ package main
 
 import (
 	"bufio"
-	"fmt"
 	"io"
 	"os/exec"
 	"time"
@@ -18,7 +17,7 @@ func (m menu) installPackage() tea.Cmd {
 	return func() tea.Msg {
 		pkg := m.order[m.current]
 
-		m.appendOutput(fmt.Sprintf("Installing %s", pkg))
+		m.logger.Infof("Installing %s...", pkg)
 
 		cmd := exec.Command("./test.sh")
 		out, err := cmd.StdoutPipe()
@@ -35,8 +34,9 @@ func (m menu) installPackage() tea.Cmd {
 			line, _, err := buf.ReadLine()
 
 			if err == io.EOF {
-				m.appendOutput(fmt.Sprintf("Finished installing %s!", pkg))
-				time.Sleep(3 * time.Second)
+				m.logger.Infof("Finished installing %s!", pkg)
+				m.logger.Infof("Output: %s\n\n", *m.output)
+				time.Sleep(2 * time.Second)
 				return cmdDoneMsg{}
 			}
 

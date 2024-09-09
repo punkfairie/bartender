@@ -12,6 +12,7 @@ import (
 	"github.com/charmbracelet/bubbles/viewport"
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
+	"github.com/charmbracelet/log"
 	"golang.org/x/term"
 )
 
@@ -27,6 +28,7 @@ type menu struct {
 	sub      chan string
 	output   *string
 	viewport viewport.Model
+	logger   *log.Logger
 }
 
 const (
@@ -34,23 +36,28 @@ const (
 	softwareGroup            = "_Full-Desktop"
 )
 
-func initialModel() menu {
+func initialModel(logFile *os.File) menu {
 	s := spinner.New()
 	s.Spinner = spinner.MiniDot
 	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("3"))
 	width, height, _ := term.GetSize(int(os.Stdout.Fd()))
 
+	logger := log.New(logFile)
+	logger.SetLevel(log.InfoLevel)
+	logger.SetFormatter(log.TextFormatter)
+
 	m := menu{
 		current:  0,
-		keys:     keys,
-		help:     help.New(),
-		spinner:  s,
-		quitting: false,
-		width:    width,
-		height:   height,
 		sub:      make(chan string),
 		output:   new(string),
 		viewport: viewport.New(0, 30),
+		width:    width,
+		height:   height,
+		spinner:  s,
+		keys:     keys,
+		help:     help.New(),
+		logger:   logger,
+		quitting: false,
 	}
 
 	return m
@@ -135,7 +142,7 @@ func (m menu) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.viewport.Height = lipgloss.Height(m.mainView())
 
 	case errMsg:
-		m.appendOutput("Error: " + msg.Error())
+		m.logger.Error("Error: " + msg.Error())
 	}
 
 	m.viewport, cmd = m.viewport.Update(msg)
@@ -159,8 +166,14 @@ func (m menu) View() string {
 }
 
 func main() {
+	l, err := os.Create("log.txt")
+	if err != nil {
+		panic(err)
+	}
+	defer l.Close()
+
 	p := tea.NewProgram(
-		initialModel(),
+		initialModel(l),
 		tea.WithAltScreen(),
 	)
 
